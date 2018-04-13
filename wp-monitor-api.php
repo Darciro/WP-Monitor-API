@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name:       Monitor WordPress
- * Plugin URI:        https://github.com/darciro/
- * Description:       @TODO
+ * Plugin URI:        https://github.com/Darciro/WP-Monitor-API
+ * Description:       Expande a API padrão do WordPress permitindo um maior monitoramento e acompanhamento do site
  * Version:           1.0.0
  * Author:            Ricardo Carvalho
  * Author URI:        https://github.com/darciro/
@@ -24,11 +24,6 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 		}
 
 		public function register_routes() {
-			/* register_rest_route( 'wp-monitor-api/v1', '/author/(?P<id>\d+)', array(
-				'methods'  => 'GET',
-				'callback' => array( $this, 'my_awesome_func' ),
-			) ); */
-
 			register_rest_route( 'wp-monitor-api/v1', '/server/info', array(
 				'methods'  => 'GET',
 				'callback' => array( $this, 'get_server_info' ),
@@ -47,6 +42,11 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 			register_rest_route( 'wp-monitor-api/v1', '/site/plugins', array(
 				'methods'  => 'GET',
 				'callback' => array( $this, 'get_site_plugins' ),
+			) );
+
+			register_rest_route( 'wp-monitor-api/v1', '/site/users', array(
+				'methods'  => 'GET',
+				'callback' => array( $this, 'get_site_users' ),
 			) );
 		}
 
@@ -120,6 +120,30 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 				$wp_plugins[$i]['has-update'] = ( array_key_exists($i, $plugin_updates) ) ? true :false;
 			}
 			return $wp_plugins;
+		}
+
+		public function get_site_users () {
+			if( is_multisite() ){
+				global $wpdb;
+				$users = array();
+				$user_ids = $wpdb->get_results( "SELECT ID FROM {$wpdb->prefix}users", ARRAY_A );
+				foreach( $user_ids as $i => $user_id ) {
+					$user_meta = get_userdata($user_id['ID']);
+					if( $user_meta->roles[0] ) {
+						$users[$i] = $user_meta->roles[0];
+					} else {
+						$users[$i] = 'subscriber';
+					}
+				}
+
+				$users = array_count_values( $users );
+				$users['total'] = count( $user_ids );
+				// print_r( $users );
+			} else {
+				// @TODO
+				$users = get_users( 'count_total=true' );
+			}
+			return $users;
 		}
 
 	}
