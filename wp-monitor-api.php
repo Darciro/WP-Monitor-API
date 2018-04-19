@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name:       Monitor WordPress
+ * Plugin Name:       Monitor WordPress API
  * Plugin URI:        https://github.com/Darciro/WP-Monitor-API
  * Description:       Expande a API padrão do WordPress permitindo um maior monitoramento e acompanhamento do site
- * Version:           1.0.0
+ * Version:           1.1.0
  * Author:            Ricardo Carvalho
  * Author URI:        https://github.com/darciro/
  * License:           GPL-2.0+
@@ -21,35 +21,165 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 
 		public function __construct() {
 			add_action( 'rest_api_init', array( $this, 'register_routes' ) );
+			add_action( 'admin_menu' , array( $this , 'wp_monitor_settings_menu' ) );
+			add_action( 'admin_init', array( $this , 'wp_monitor_api_register_settings' )  );
 		}
 
+		/**
+		 * Add a sub menu page
+         *
+		 */
+		public function wp_monitor_settings_menu () {
+			add_submenu_page(
+				'options-general.php',
+				'WP Monitor API',
+				'WP Monitor API',
+				'manage_options',
+				'wp-monitor-api-settings',
+				array( $this, 'wp_monitor_api_settings' )
+			);
+		}
+
+		/**
+		 * Register the settings for our plugin options
+         *
+		 */
+	    public function wp_monitor_api_register_settings() {
+			register_setting(
+                'wp-monitor-api-settings-group',
+                'wp_monitor_api_key',
+				array( $this, 'wp_monitor_api_options_sanitize' )
+            );
+		}
+
+		/**
+		 * View for the options page
+		 *
+		 */
+		public function wp_monitor_api_settings() { ?>
+            <div class="wrap">
+                <h1>WP Monitor API</h1>
+                <form method="post" action="options.php">
+					<?php settings_fields( 'wp-monitor-api-settings-group' ); ?>
+					<?php do_settings_sections( 'wp-monitor-api-settings-group' ); ?>
+                    <table class="form-table">
+                        <tr valign="top">
+                            <th scope="row">API Key</th>
+                            <td><input type="password" name="wp_monitor_api_key" value="<?php echo esc_attr( get_option('wp_monitor_api_key') ); ?>" /></td>
+                        </tr>
+                    </table>
+
+					<?php submit_button(); ?>
+
+                </form>
+            </div>
+		<?php }
+
+		/**
+		 * Sanitize the raw value for our plugin options
+		 *
+		 */
+		public function wp_monitor_api_options_sanitize ($input) {
+			if ( isset( $input ) ) {
+				// return wp_hash_password( $input );
+				return $input;
+			}
+        }
+
+		/**
+         * Check whether the user has sent a header with authentication data and if this data is correct
+         * @TODO Redefine the token as MD5 encryption
+         *
+		 * @return bool
+		 */
+		public function permission_check () {
+			$username = '';
+			$password = '';
+			$mod = NULL;
+
+			// Apache mod_php
+			if ( isset( $_SERVER['PHP_AUTH_USER'] ) ):
+				$username = $_SERVER['PHP_AUTH_USER'];
+				$password = $_SERVER['PHP_AUTH_PW'];
+				$mod = 'PHP_AUTH_USER';
+
+			// Others servers
+			elseif ( isset( $_SERVER['HTTP_AUTHORIZATION'] ) ):
+				if ( preg_match( '/^basic/i', $_SERVER['HTTP_AUTHORIZATION'] ) )
+					list( $username, $password ) = explode( ':', base64_decode( substr( $_SERVER['HTTP_AUTHORIZATION'], 6 ) ) );
+				$mod = 'HTTP_AUTHORIZATION';
+
+			endif;
+
+			// If the authentication was not sent
+			if ( is_null( $username ) ):
+
+				header('WWW-Authenticate: Basic realm="'. get_bloginfo( 'name' ) .' - WP Monitor API"');
+				header('HTTP/1.0 401 Unauthorized');
+				die('Acesso negado. A autenticação não foi enviada');
+
+			// Check auth data sent
+			else:
+				header('WWW-Authenticate: Basic realm="'. get_bloginfo( 'name' ) .' - WP Monitor API"');
+				header('HTTP/1.0 200 OK');
+
+				if( $username === 'wp-monitor-api' ){
+					// var_dump( $username, $password, $mod );
+					$wp_monitor_api_key = get_option( 'wp_monitor_api_key' );
+					// var_dump( $password, md5($password), $wp_monitor_api_key );
+
+                    // If the token sent match the option saved in WP
+					if( $password === $wp_monitor_api_key ){
+						return true;
+					}
+				}
+
+			endif;
+
+			return false;
+		}
+
+		/**
+		 * Define the routes for our monitor plugin extending the default API
+         *
+		 */
 		public function register_routes() {
 			register_rest_route( 'wp-monitor-api/v1', '/server/info', array(
 				'methods'  => 'GET',
 				'callback' => array( $this, 'get_server_info' ),
+				'permission_callback' => array( $this, 'permission_check' )
 			) );
 
 			register_rest_route( 'wp-monitor-api/v1', '/site/info', array(
 				'methods'  => 'GET',
 				'callback' => array( $this, 'get_site_info' ),
+				'permission_callback' => array( $this, 'permission_check' )
 			) );
 
 			register_rest_route( 'wp-monitor-api/v1', '/site/themes', array(
 				'methods'  => 'GET',
 				'callback' => array( $this, 'get_site_themes' ),
+				'permission_callback' => array( $this, 'permission_check' )
 			) );
 
 			register_rest_route( 'wp-monitor-api/v1', '/site/plugins', array(
 				'methods'  => 'GET',
 				'callback' => array( $this, 'get_site_plugins' ),
+				'permission_callback' => array( $this, 'permission_check' )
 			) );
 
 			register_rest_route( 'wp-monitor-api/v1', '/site/users', array(
 				'methods'  => 'GET',
 				'callback' => array( $this, 'get_site_users' ),
+				'permission_callback' => array( $this, 'permission_check' )
 			) );
 		}
 
+		/**
+         * Retrieve data from the server where WordPress is installed
+         *
+		 * @return array
+		 */
 		public function get_server_info() {
 			$data = array(
 				'operating-system'      => sprintf( '%s (%d Bit)', PHP_OS, PHP_INT_SIZE * 8 ),
@@ -62,6 +192,11 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 			return $data;
 		}
 
+		/**
+		 * Retrieve data from the core, such as WP version and blog info
+         *
+		 * @return array
+		 */
 		public function get_site_info() {
 			if ( ! function_exists( 'get_core_updates' ) ) {
 				require_once ABSPATH . 'wp-admin/includes/update.php';
@@ -79,6 +214,11 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 			return $data;
 		}
 
+		/**
+         * Retrieve info from themes installed
+         *
+		 * @return array
+		 */
 		public function get_site_themes() {
 			$themes    = wp_get_themes();
 			$wp_themes = array();
@@ -105,6 +245,11 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 			return $wp_themes;
 		}
 
+		/**
+		 * Retrieve info from plugins installed
+		 *
+		 * @return array
+		 */
 		public function get_site_plugins() {
 			if ( ! function_exists( 'get_plugin_updates' ) ) {
 				require_once ABSPATH . 'wp-admin/includes/update.php';
@@ -122,6 +267,12 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 			return $wp_plugins;
 		}
 
+		/**
+		 * Retrieve info from all users subscribed to the site
+         * @TODO Check the return from a single installation WP
+		 *
+		 * @return array
+		 */
 		public function get_site_users () {
 			if( is_multisite() ){
 				global $wpdb;
@@ -138,10 +289,9 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 
 				$users = array_count_values( $users );
 				$users['total'] = count( $user_ids );
-				// print_r( $users );
 			} else {
-				// @TODO
 				$users = get_users( 'count_total=true' );
+				// print_r( $users );
 			}
 			return $users;
 		}
