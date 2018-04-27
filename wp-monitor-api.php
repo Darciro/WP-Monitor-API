@@ -20,9 +20,12 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 	class WPMonitorAPI {
 
 		public function __construct() {
+            add_action( 'admin_enqueue_scripts', array( $this, 'register_scripts' ) );
+            add_action( 'admin_enqueue_scripts', array( $this, 'register_styles' ) );
 			add_action( 'rest_api_init', array( $this, 'register_routes' ) );
 			add_action( 'admin_menu' , array( $this , 'wp_monitor_settings_menu' ) );
 			add_action( 'admin_init', array( $this , 'wp_monitor_api_register_settings' )  );
+            add_action( 'wp_ajax_get_md5_hash', array($this, 'get_md5_hash'));
 		}
 
 		/**
@@ -64,8 +67,15 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 					<?php do_settings_sections( 'wp-monitor-api-settings-group' ); ?>
                     <table class="form-table">
                         <tr valign="top">
-                            <th scope="row">API Key</th>
-                            <td><input type="password" name="wp_monitor_api_key" value="<?php echo esc_attr( get_option('wp_monitor_api_key') ); ?>" /></td>
+                            <th scope="row">
+                                <label for="wp_monitor_api_key">API Key</label>
+                            </th>
+                            <td>
+                                <div class="input-token-api">
+                                    <input type="text" id="wp_monitor_api_key" name="wp_monitor_api_key" value="<?php echo esc_attr( get_option('wp_monitor_api_key') ); ?>" />
+                                    <button id="wp-monitor-api-generate-token-btn">Gerar novo token</button>
+                                </div>
+                            </td>
                         </tr>
                     </table>
 
@@ -84,6 +94,40 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 				// return wp_hash_password( $input );
 				return $input;
 			}
+        }
+
+        /**
+         * Generate hash from a randon number
+         *
+         */
+        public function get_md5_hash () {
+		    $rand = rand();
+		    echo md5( $rand );
+		    die;
+        }
+
+        /**
+         * Register scritps for our plugin
+         *
+         */
+        public function register_scripts() {
+            wp_register_script( 'wp-monitor-api-scripts', plugin_dir_url( __FILE__ ) . 'assets/wp-monitor-api-scripts.js' );
+            wp_enqueue_script( 'wp-monitor-api-scripts' );
+
+            $monitor = array(
+                'ajaxurl' => admin_url( 'admin-ajax.php' )
+            );
+
+            wp_localize_script( 'wp-monitor-api-scripts', 'monitor', $monitor );
+        }
+
+        /**
+         * Register styles for our plugin
+         *
+         */
+        public function register_styles() {
+            wp_register_style( 'wp-monitor-api-styles', plugin_dir_url( __FILE__ ) . 'assets/wp-monitor-api-styles.css' );
+            wp_enqueue_style( 'wp-monitor-api-styles' );
         }
 
 		/**

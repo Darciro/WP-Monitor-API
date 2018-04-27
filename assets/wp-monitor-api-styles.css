@@ -1,0 +1,17 @@
+.input-token-api input {
+    width: 50%;
+}
+
+.input-token-api input,
+.input-token-api button {
+    padding: 5px;
+    margin: 0;
+    line-height: 22px;
+}
+
+.input-token-api button {
+    padding: 5px 15px;
+    border: transparent;
+    background: #ddd;
+    cursor: pointer;
+}
