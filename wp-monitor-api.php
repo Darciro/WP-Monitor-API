@@ -24,8 +24,9 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
             add_action( 'admin_enqueue_scripts', array( $this, 'register_styles' ) );
 			add_action( 'rest_api_init', array( $this, 'register_routes' ) );
 			add_action( 'admin_menu' , array( $this , 'wp_monitor_settings_menu' ) );
-			add_action( 'admin_init', array( $this , 'wp_monitor_api_register_settings' )  );
+			add_action( 'admin_init', array( $this , 'wp_monitor_api_register_settings' ) );
             add_action( 'wp_ajax_get_md5_hash', array($this, 'get_md5_hash'));
+			add_action( 'rest_api_init', array( $this , 'wp_monitor_cors' ), 15 );
 		}
 
 		/**
@@ -166,6 +167,10 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 			else:
 				header('WWW-Authenticate: Basic realm="'. get_bloginfo( 'name' ) .' - WP Monitor API"');
 				header('HTTP/1.0 200 OK');
+
+				// @TODO Pensar numa forma de adicionar CORS
+				header('Access-Control-Allow-Origin: http://104.131.81.174');
+				header('Access-Control-Allow-Credentials: true');
 
 				if( $username === 'wp-monitor-api' ){
 					// var_dump( $username, $password, $mod );
@@ -338,6 +343,19 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 				// print_r( $users );
 			}
 			return $users;
+		}
+
+		public function wp_monitor_cors () {
+			remove_filter( 'rest_pre_serve_request', 'rest_send_cors_headers' );
+			add_filter( 'rest_pre_serve_request', function( $value ) {
+
+				header( 'Access-Control-Allow-Origin: http://wp-monitor-dashboard.localhost' );
+				header( 'Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE' );
+				header( 'Access-Control-Allow-Headers: Authorization, X-Requested-With, Content-Type, Origin, Accept' );
+				header( 'Access-Control-Allow-Credentials: true' );
+				return $value;
+			});
+
 		}
 
 	}
