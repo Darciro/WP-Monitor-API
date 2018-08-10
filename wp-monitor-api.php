@@ -27,6 +27,7 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 			add_action( 'admin_init', array( $this , 'wp_monitor_api_register_settings' ) );
             add_action( 'wp_ajax_get_md5_hash', array($this, 'get_md5_hash'));
 			add_action( 'rest_api_init', array( $this , 'wp_monitor_cors' ), 15 );
+			add_action( 'allowed_http_origin', array($this, 'wp_monitor_send_cors_headers'));
 		}
 
 		/**
@@ -355,6 +356,21 @@ if ( ! class_exists( 'WPMonitorAPI' ) ) :
 				header( 'Access-Control-Allow-Credentials: true' );
 				return $value;
 			});
+
+		}
+
+		public function wp_monitor_send_cors_headers( $origin ) {
+
+			// Access-Control headers are received during OPTIONS requests
+			if (  $origin && 'OPTIONS' === $_SERVER['REQUEST_METHOD'] ) {
+
+				if ( isset( $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'] ) ) {
+					@header( 'Access-Control-Allow-Headers: '. $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'] );
+				}
+
+			}
+
+			return $origin;
 
 		}
 
